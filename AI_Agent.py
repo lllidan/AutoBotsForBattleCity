@@ -45,11 +45,9 @@ class ai_agent():
     # def Get_mapInfo:		fetch the map infomation
     # def Update_Strategy	Update your strategy
 
-
-    def operations (self,p_mapinfo,c_control):
+    def operations (self, p_mapinfo,c_control):
 
         while True:
-            #-----your ai operation,This code is a random strategy,please design your ai !!-----------------------
             self.Get_mapInfo(p_mapinfo)
 
             bullets = self.mapinfo[0]
@@ -362,7 +360,7 @@ class ai_agent():
                 sys.stdout.write(self.encoded_map[i][j])
             sys.stdout.write("\n")
 
-    def Get_mapInfo(self,p_mapinfo):
+    def Get_mapInfo(self, p_mapinfo):
         if p_mapinfo.empty()!=True:
             try:
                 self.mapinfo = p_mapinfo.get(False)
