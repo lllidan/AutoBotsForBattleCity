@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import random
-import time
-import multiprocessing
-import sys
-import Queue
+import random, time, multiprocessing, sys, queue, threading,pygame
+import Model_Controller, tanks
 
-class ai_agent():
+
+class AiAgent():
     mapinfo = []
     encoded_map = []
     dangerous_map = []
@@ -13,6 +11,7 @@ class ai_agent():
     #map_height = 0
 
     def __init__(self):
+        print ("ai_agent正在初始化")
         self.mapinfo = []
         self.encoded_map = []
         self.map_width = 13
@@ -20,15 +19,17 @@ class ai_agent():
         self.encoded_player_top = -1
         self.encoded_player_left = -1
 
-        #               up right down left
+        #               上   右  下   左
         self.dir_top =  [-1, 0,  1,   0]
         self.dir_left = [0,  1,  0,  -1]
 
-        #	dangerous location (bullets may pass in near time)
+        # 子弹近防系统所需信息
         self.dangerous_map = []
 
-        # adjusting
+        # 姿态修正
         self.adjusting = False
+
+        self.orderList = queue.Queue()
 
     # rect:					[left, top, width, height]
     # rect_type:			0:empty 1:brick 2:steel 3:water 4:grass 5:froze
@@ -40,48 +41,56 @@ class ai_agent():
     # mapinfo[3]: 			player 	[rect, direction, speed, Is_shielded]]
     # shoot:				0:none 1:shoot
     # move_dir:				0:Up 1:Right 2:Down 3:Left 4:None
-    # keep_action:			0:The tank work only when you Update_Strategy. 	1:the tank keep do previous action until new Update_Strategy.
+    # keep_action:			0:The tank work only when you Update_Strategy.
+    #                       1:the tank keep do previous action until new Update_Strategy.
 
     # def Get_mapInfo:		fetch the map infomation
     # def Update_Strategy	Update your strategy
 
-    def operations (self, p_mapinfo,c_control):
+    # def operations(self):
+
+    def operations(self):
+
+        print ("汽车人，出击")
+        # Model_Controller.event.wait()
+        # time.sleep(3)
+        while True:
+            if hasattr(Model_Controller.game, "level") is True:
+                break
+            print ("waiting for the sign")
+
 
         while True:
-            self.Get_mapInfo(p_mapinfo)
+            time.sleep(0.001)
 
+            # 收集地图信息
+            self.mapinfo = Model_Controller.GameController.col_mapinfo()
+
+            # 战斗信息分类
             bullets = self.mapinfo[0]
             enemies = self.mapinfo[1]
             tiles = self.mapinfo[2]
             player = self.mapinfo[3][0]
+
             player_left = player[0][0]
             player_top = player[0][1]
 
-            q = 0
-            for i in range(100):
-                q += 1
+            # q = 0
+            # for i in range(100):
+            #     q += 1
 
             # print bullets
 
+            # 地图解析
             self.encode_map(bullets, enemies, tiles, player)
-
-
-            print player
-
             # self.print_encoded_map()
-            # raw_input()
 
-
-            # print self.mapinfo[1]
             time.sleep(0.001)
 
-            # q=0
-            # for i in range(10000000):
-            # 	q+=1
+            shoot = random.randint(0, 1)
 
+            move_dir = random.randint(0, 4)
 
-            shoot = random.randint(0,1)
-            move_dir = random.randint(0,4)
             keep_action = 1
 
 
@@ -95,59 +104,69 @@ class ai_agent():
             adjust_top = self.encoded_player_top * 32
             adjust_left = self.encoded_player_left * 32
 
-            print "player_top: %d,  player_left: %d" %(player_top, player_left)
+            # print "player_top: %d,  player_left: %d" %(player_top, player_left)
+
+            # 战斗策略生成
+            # 子弹躲避系统
             move = self.dodge_bullets(bullets, player_top, player_left)
             if (move != -1):
                 print "Dodge Bullet"
-                self.Update_Strategy(c_control, 0, move, 1)
+                self.Update_Strategy(self.orderList, 0, move, 1)
                 continue
 
             # 1. check if the position of player's tank is on the multiplier of 32
             if (player_dir == 1 or player_dir == 3):
                 if (player_top - adjust_top > 5):
                     # print "adjust left"
-                    self.Update_Strategy(c_control, 0, 0, keep_action)
+                    self.Update_Strategy(self.orderList, 0, 0, keep_action)
                     continue
-
+        #
             elif (player_dir == 0 or player_dir == 2):
                 if (player_left - adjust_left > 5):
                     # print "adjust left"
-                    self.Update_Strategy(c_control, 0, 3, keep_action)
+                    self.Update_Strategy(self.orderList, 0, 3, keep_action)
                     continue
-
-            # 2. check nearest 5 blocks in every direction ( bullet, tank )
+        #
+            # 2. 查找周围5格范围内的电脑 ( bullet, tank )
             # check for bullets
             move = self.check_bullets(bullets)
             if (move != -1):
-                # print "Found Bullet"
-                self.Update_Strategy(c_control, 1, move, 1)
+                # print "发现子弹"
+                self.Update_Strategy(self.orderList, 1, move, 1)
                 continue
-
-
+        #
+        #
             # check for tanks
             move = self.check_tanks()
             if (move != -1):
                 # print "Found Tank"
-                self.Update_Strategy(c_control, 1, move, 1)
+                self.Update_Strategy(self.orderList, 1, move, 1)
                 continue
-
-
+        #
+        #
             # 3. BFS
             self.generate_dangerous_map(bullets, enemies)
             move = self.bfs()
             if (move == -1):
-                move = random.randint(0,4)
-                self.Update_Strategy(c_control, 0, move, keep_action)
+                move = random.randint(0, 4)
+                self.Update_Strategy(self.orderList, 0, move, keep_action)
             else:
-                self.Update_Strategy(c_control, 0, move, keep_action)
-        #keep_action = 0
+                self.Update_Strategy(self.orderList, 0, move, keep_action)
+
+
+            # 执行战斗指令
+            self.activate_Strategy(self.orderList)
+
+        # #keep_action = 0
 
 
         #-----------
-        # self.Update_Strategy(c_control,shoot,move_dir,keep_action)
+        # self.Update_Strategy(self.orderList,shoot,move_dir,keep_action)
     #------------------------------------------------------------------------------------------------------
 
+
     def dodge_bullets(self, bullets, player_top, player_left):
+        """ 判断子弹与自己的相对位置，如不在近处，无需躲避"""
         range = 100
         for bullet in bullets:
             bullet_top = bullet[0][1]
@@ -213,7 +232,7 @@ class ai_agent():
         return -1
 
     def bfs(self):
-        q = Queue.Queue()
+        q = queue.Queue()
 
         player_left = 0
         player_top = 0
@@ -355,22 +374,49 @@ class ai_agent():
         self.dangerous_map = result
 
     def print_encoded_map(self):
+        """打印出解析后的地图"""
         for i in range(13):
             for j in range(13):
                 sys.stdout.write(self.encoded_map[i][j])
             sys.stdout.write("\n")
 
-    def Get_mapInfo(self, p_mapinfo):
-        if p_mapinfo.empty()!=True:
-            try:
-                self.mapinfo = p_mapinfo.get(False)
-            except Queue.Empty:
-                skip_this=True
+    # def Get_mapInfo(self, p_mapinfo):
+    #     if p_mapinfo.empty()!=True:
+    #         try:
+    #             self.mapinfo = p_mapinfo.get(False)
+    #         except Queue.Empty:
+    #             skip_this=True
 
-    def Update_Strategy(self,c_control,shoot,move_dir,keep_action):
-        if c_control.empty() ==True:
-            c_control.put([shoot,move_dir,keep_action])
+    def Update_Strategy(self, orderlist, shoot, move_dir, keep_action):
+        if orderlist.empty() is True:
+            orderlist.put([shoot, move_dir, keep_action])
             return True
         else:
             return False
+
+    def activate_Strategy(self, orderlists):
+        (DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT) = range(4)
+        if orderlists.empty() is True:
+            return 0
+        else:
+            order = orderlists.get()
+            player = tanks.players[0]
+            if player.state == player.STATE_ALIVE and not Model_Controller.game.game_over and Model_Controller.game.active:
+                if order[0] == 1:
+                    if tanks.players[0].fire() and tanks.play_sounds:
+                        tanks.sounds["fire"].play()
+                if order[1] < 4:
+                    tanks.players[0].pressed[order[1]] = True
+                    if player.pressed[0] == True:
+                        player.move(DIR_UP);
+                    elif player.pressed[1] == True:
+                        player.move(DIR_RIGHT);
+                    elif player.pressed[2] == True:
+                        player.move(DIR_DOWN);
+                    elif player.pressed[3] == True:
+                        player.move(DIR_LEFT);
+            player.update(0.05)
+            if order[1] < 4:
+                player.pressed[order[1]] = False
+
 
