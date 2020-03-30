@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import threading, multiprocessing, time, Queue
+import threading, datetime,sys
 import Model_Controller
-import AI_Agent
-import deco
-import tanks
-
-
+import AI_Agent, util
+print "输出重定向"
+sys.stdout = util.Logger()
 
 class GameStart():
     def __init__(self):
@@ -28,8 +26,8 @@ if __name__ == "__main__":
 
     playerFlag = True
     stageFlag = True
-    numOfPlayers = -1
-    numOfStage = -1
+    numOfPlayers = 1
+    numOfStage = 0
 
     # while playerFlag:
     #     numOfPlayers = input("请输入开启的电脑数(1 or 2):    ")
@@ -49,44 +47,19 @@ if __name__ == "__main__":
     #         stageFlag = False
     # ----------------------------------------------------------------------------
     print("--------------------link start--------------------")
+    print datetime.datetime.now().strftime('[DEBUG]%Y-%m-%d %H:%M:%S')
     # 模拟进程，启动！
     # 根据玩家数，启动对应数量的模拟程式
 
     gc = Model_Controller.GameController()
     ai1 = AI_Agent.AiAgent()
 
-    p = threading.Thread(target=ai1.operations)
-    p.setDaemon(True)
-    q = threading.Thread(target=gc.gamestart)
-    q.start()
-    p.start()
+    # p = threading.Thread(target=ai1.operations)
+    p = threading.Thread(target=ai1.robotmoving)
 
-    # p = threading.Thread(target=Model_Controller.GameController.col_mapinfo)
-    # p.start()
-    # q = threading.Thread(target=gc.gamestart())
-
-    # p.start()
-    print "no name"
-
-
-
-    #
+    # q = threading.Thread(target=gc.gamestart)
     # q.start()
-    # p = threading.Thread(target=ai1.operations())
-    # p.start()
-
-    # Model_Controller.GameController.gamestart(s=0, n=1)
-
-    # p = threading.Thread(target=ai1.operations())
-    # p.start()
-
-    # p = threading.Thread(target=Model_Controller.GameController().col_mapinfo)
-    # p.start()
-
-    # 游戏主进程启动
-    # Model_Controller.GameController.gamestart(s=0, n=1)
-    print 1
-    # p = multiprocessing.Process(target=Model_Controller.GameController.gamestart)
-    # p.start()
+    p.start()
+    gc.gamestart(numOfStage, numOfPlayers)
     # ----------------------------------------------------------------------------
 
